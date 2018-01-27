@@ -33,11 +33,13 @@ if [[ "$?" != 0 ]]; then
 	echo "$($DATE) [ERROR] - SSH Keys are not setup"
 	exit 1
 fi
+
 LOCALVERSION=$($GREP -E "^version" $SKYBOXHOME/server/bin/version.txt | $AWK -F= '{print $2}')
 REMOTEVERSION=$($SSH $REMOTE "$GREP -E "^version" $SKYBOXHOME/server/bin/version.txt | $AWK -F= '{print \$2}'")
 LOCALCALL=$($GREP REMOTE= $THISFILE | head -1 | awk '{print $1}' | awk -F= '{print $2}')
 REMOTECALL=$($SSH $REMOTE "$GREP REMOTE= $THISFILE | head -1 | awk '{print \$1}' | awk -F= '{print \$2}'")
 BACKUPFILE=$(ls $SKYBOXHOME/utility/bin/*.sbu 2>/dev/null)
+
 if [[ "$BACKUPFILE" != "" ]]; then
 	echo "$($DATE) [INFO] - Found backup file $BACKUPFILE.  Transfering to DR"
 	$RSYNC -ra $BACKUPFILE $REMOTE:$BACKUPFILE
@@ -106,13 +108,13 @@ if [[ "$?" != 0 ]]; then
 fi
 echo "$($DATE) [INFO] - Model load complete"	
 
-MD5=$($MD5SUM $SKYBOXHOME/data/settings_backup/$SETTINGSFILENAME | awk '{print $1}')
 echo "$($DATE) [INFO] - Copying settings to remote system"
 $RSYNC -ra $SKYBOXHOME/data/settings_backup/$SETTINGSFILENAME $REMOTE:$SKYBOXHOME/data/settings_backup/
 if [[ "$?" != 0 ]]; then
-	echo "$($DATE) [ERROR] - Rsync failed"
+	echo "$($DATE) [ERROR] - Rsync of setting file failed.  Is it being backed up?"
 	exit 1
 fi
+MD5=$($MD5SUM $SKYBOXHOME/data/settings_backup/$SETTINGSFILENAME | awk '{print $1}')
 REMOTEMD5=$($SSH $REMOTE "$MD5SUM $SKYBOXHOME/data/settings_backup/$SETTINGSFILENAME | awk '{print \$1}'")
 
 if [[ "$MD5" != "$REMOTEMD5" ]]; then
@@ -130,9 +132,10 @@ fi
 echo "$($DATE) [INFO] - Copying fw_configs to remote system"
 $RSYNC --delete -ra $SKYBOXHOME/data/fw_configs $REMOTE:$SKYBOXHOME/data/
 if [[ "$?" != 0 ]]; then
-	echo "$($DATE) [ERROR] - Rsync failed"
+	echo "$($DATE) [ERROR] - Rsync failed to copy configuration files"
 	exit 1
 fi
+
 $SSH $REMOTE "cd $SKYBOXHOME/server/conf ; sed 's/task_scheduling_activation=true/task_scheduling_activation=false/g' sb_server.properties > sb_server.properties.temp ; mv sb_server.properties.temp sb_server.properties"
 if [[ "$?" != 0 ]]; then
 	echo "$($DATE) [ERROR] - Task scheduler assignment failed"
@@ -142,9 +145,17 @@ fi
 echo "$($DATE) [INFO] - Copying PS Directory $CUSTOMDIR"
 $RSYNC --delete -ra $CUSTOMDIR/ $REMOTE:$CUSTOMDIR
 if [[ "$?" != 0 ]]; then
-	echo "$($DATE) [ERROR] - Rsync failed"
+	echo "$($DATE) [ERROR] - Rsync failed to copy customizations in $CUSTOMDIR"
 	exit 1
 fi
+
+echo "$($DATE) [INFO] - Copying .bashrc"
+$RSYNC -ra /home/skyboxview/.bashrc $REMOTE:/home/skyboxview/
+if [[ "$?" != 0 ]]; then
+        echo "$($DATE) [ERROR] - Rsync failed to copy .bashrc"
+        exit 1
+fi
+
 $SSH $REMOTE "sed 's/$LOCALCALL/$REMOTECALL/g' $THISFILE > $THISFILE.temp ; mv $THISFILE.temp $THISFILE ; chmod +x $THISFILE"
 
 echo "$($DATE) [INFO] - Script Complete"
