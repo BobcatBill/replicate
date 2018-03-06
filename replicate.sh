@@ -26,7 +26,7 @@ GREP=$(which grep)
 AWK=$(which awk)
 MD5SUM=$(which md5sum)
 RSYNC=$(which rsync)
-SETTINGSFILENAME=$(ls -rt $SKYBOXHOME/data/settings_backup | tail -1)
+SETTINGSFILENAME=$(ls -rt $SKYBOXHOME/data/settings_backup/settings_backup* | tail -1)
 LOCALSTATE=$($GREP task_scheduling_activation $SKYBOXHOME/server/conf/sb_server.properties | $AWK -F= '{print $2}')
 REMOTESTATE=$($SSH -oPasswordAuthentication=no $REMOTE "grep task_scheduling_activation $SKYBOXHOME/server/conf/sb_server.properties | $AWK -F= '{print \$2}'")
 if [[ "$?" != 0 ]]; then
@@ -109,13 +109,13 @@ fi
 echo "$($DATE) [INFO] - Model load complete"	
 
 echo "$($DATE) [INFO] - Copying settings to remote system"
-$RSYNC -ra $SKYBOXHOME/data/settings_backup/$SETTINGSFILENAME $REMOTE:$SKYBOXHOME/data/settings_backup/
+$RSYNC -ra $SETTINGSFILENAME $REMOTE:$SKYBOXHOME/data/settings_backup/
 if [[ "$?" != 0 ]]; then
 	echo "$($DATE) [ERROR] - Rsync of setting file failed.  Is it being backed up?"
 	exit 1
 fi
-MD5=$($MD5SUM $SKYBOXHOME/data/settings_backup/$SETTINGSFILENAME | awk '{print $1}')
-REMOTEMD5=$($SSH $REMOTE "$MD5SUM $SKYBOXHOME/data/settings_backup/$SETTINGSFILENAME | awk '{print \$1}'")
+MD5=$($MD5SUM $SETTINGSFILENAME | awk '{print $1}')
+REMOTEMD5=$($SSH $REMOTE "$MD5SUM $SETTINGSFILENAME | awk '{print \$1}'")
 
 if [[ "$MD5" != "$REMOTEMD5" ]]; then
         echo "$($DATE) [ERROR] - MD5 Mismatch after settings copy.  Aborting..."
@@ -123,7 +123,7 @@ if [[ "$MD5" != "$REMOTEMD5" ]]; then
 fi
 
 echo "$($DATE) [INFO] - Unzipping settings on remote server"
-$SSH $REMOTE "unzip -qo $SKYBOXHOME/data/settings_backup/$SETTINGSFILENAME -d $SKYBOXHOME"
+$SSH $REMOTE "unzip -qo $SETTINGSFILENAME -d $SKYBOXHOME"
 if [[ "$?" != 0 ]]; then
 	echo "$($DATE) [ERROR] - Remote unzip failed"
 	exit 1
